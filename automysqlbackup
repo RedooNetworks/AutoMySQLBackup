@@ -326,6 +326,7 @@ files_postprocessing () {
 	local flags
 	let "flags=0x00"
 	let "flags_files_postprocessing_success_encrypt=0x01"
+	let "flags_files_postprocessing_success_encrypt_gpg=0x01"
 
 	# -> CONFIG_encrypt
 	[[ "${CONFIG_encrypt}" = "yes" && "${CONFIG_encrypt_password}" ]] && {
@@ -358,6 +359,7 @@ files_postprocessing () {
 		  if rm ${1} 2>&1; then
 		    echo "Successfully encrypted archive as ${1}.gpg"
 		    let "flags |= $flags_files_postprocessing_success_encrypt"
+	    	    let "flags |= $flags_files_postprocessing_success_encrypt_gpg"
 		  else
 		    echo "Successfully encrypted archive as ${1}.gpg, but could not remove cleartext file ${1}."
 		    let "E |= $E_enc_cleartext_delfailed"
@@ -372,6 +374,19 @@ files_postprocessing () {
 	# -> CONFIG_mysql_dump_latest
 	[[ "${CONFIG_mysql_dump_latest}" = "yes" ]] && {
 	  if (( $flags & $flags_files_postprocessing_success_encrypt )); then
+	  	if (( $flags & $flags_files_postprocessing_success_encrypt_gpg )); then
+			if (( $CONFIG_dryrun )); then
+			  printf 'dry-running: cp -al %s.gpg %s/latest/\n' "${1}" "${CONFIG_backup_dir}"
+			else
+			  cp -al "${1}.gpg" "${CONFIG_backup_dir}"/latest/
+			fi
+		else
+			if (( $CONFIG_dryrun )); then
+			  printf 'dry-running: cp -al %s.enc %s/latest/\n' "${1}" "${CONFIG_backup_dir}"
+			else
+			  cp -al "${1}.enc" "${CONFIG_backup_dir}"/latest/
+			fi
+		fi
 		if (( $CONFIG_dryrun )); then
 		  printf 'dry-running: cp -al %s.enc %s/latest/\n' "${1}" "${CONFIG_backup_dir}"
 		else
@@ -543,8 +558,8 @@ parse_configuration () {
 	fi
     [[ "${CONFIG_mysql_dump_master_data}" ]] && (( ${CONFIG_mysql_dump_master_data} == 1 || ${CONFIG_mysql_dump_master_data} == 2 )) && { opt=( "${opt[@]}" "--master-data=${CONFIG_mysql_dump_master_data}" );}
     [[ "${CONFIG_mysql_dump_single_transaction}" = "yes" ]]	&& {
-	  opt=( "${opt[@]}" '--single-transaction' )
-	  opt_fullschema=( "${opt_fullschema[@]}" '--single-transaction' )
+	  opt=( "${opt[@]}" '--single-transaction' '--quick' '--set-gtid-purged=OFF')
+	  opt_fullschema=( "${opt_fullschema[@]}" '--single-transaction' '--quick' '--set-gtid-purged=OFF')
     }
     [[ "${CONFIG_mysql_dump_commcomp}" = "yes" ]]		&& {
 	  opt=( "${opt[@]}" '--compress' )
